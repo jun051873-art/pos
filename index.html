@@ -1434,8 +1434,34 @@ function HairSalonApp() {
                         const link = document.createElement('a'); link.href = url; link.download = `salon_backup_${getCurrentDateLocal()}.json`; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url); showToast('備份下載已啟動');
                     } catch (error) { console.error(error); alert('備份失敗'); }
                 };
-                const importBackup = (event) => { const fileReader = new FileReader(); fileReader.readAsText(event.target.files[0], "UTF-8"); fileReader.onload = e => { try { const parsed = JSON.parse(e.target.result); if(confirm('確定還原？')) { if(parsed.services) setServices(parsed.services); if(parsed.stylists) setStylists(parsed.stylists); if(parsed.customers) setCustomers(parsed.customers); if(parsed.transactions) setTransactions(parsed.transactions); if(parsed.settings) setSettings(parsed.settings); if(parsed.inventoryLogs) setInventoryLogs(parsed.inventoryLogs); if(parsed.expenses) setExpenses(parsed.expenses); showToast('還原成功！'); } } catch(err) { alert('檔案錯誤'); } }; };
-                
+   const importBackup = (event) => { 
+                    const fileReader = new FileReader(); 
+                    fileReader.readAsText(event.target.files[0], "UTF-8"); 
+                    fileReader.onload = e => { 
+                        try { 
+                            const parsed = JSON.parse(e.target.result); 
+                            if(confirm('確定要「強制還原」此備份檔並同步至雲端嗎？\n(系統將會自動重新啟動)')) { 
+                                
+                                // 1. 核心暴力鎖定：直接寫入底層記憶體，不讓系統有機會跳回空的
+                                if(parsed.services) localStorage.setItem('salon_services', JSON.stringify(parsed.services));
+                                if(parsed.stylists) localStorage.setItem('salon_stylists', JSON.stringify(parsed.stylists));
+                                if(parsed.customers) localStorage.setItem('salon_customers', JSON.stringify(parsed.customers));
+                                if(parsed.transactions) localStorage.setItem('salon_transactions', JSON.stringify(parsed.transactions));
+                                if(parsed.expenses) localStorage.setItem('salon_expenses', JSON.stringify(parsed.expenses));
+                                if(parsed.settings) localStorage.setItem('salon_settings', JSON.stringify(parsed.settings));
+                                if(parsed.inventoryLogs) localStorage.setItem('salon_inventory_logs', JSON.stringify(parsed.inventoryLogs));
+
+                                // 2. 顯示成功訊息並立刻重啟網頁
+                                showToast('資料已強制鎖定，系統重新啟動中...'); 
+                                setTimeout(() => {
+                                    window.location.reload(); 
+                                }, 1200);
+                            } 
+                        } catch(err) { 
+                            alert('檔案讀取失敗，請確認是否為正確的備份 JSON 檔'); 
+                        } 
+                    }; 
+                };             
                 const handleSaveItem = () => {
                     if (!itemForm.name || !itemForm.price) { alert('請輸入名稱與價格'); return; }
                     const newItem = { ...itemForm, price: Number(itemForm.price), cost: Number(itemForm.cost || 0), stock: itemForm.isProduct ? (itemForm.stock !== null ? itemForm.stock : 0) : null };

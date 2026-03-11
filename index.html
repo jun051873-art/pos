@@ -470,8 +470,8 @@ function HairSalonApp() {
                     return (
                         <Modal title={`編輯訂單 #${order.id.slice(0,8)}`} onClose={onClose} size="max-w-2xl">
                             <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border">
-                                    <div><label className="text-xs font-bold text-slate-500">日期</label><input type="datetime-local" className="input-field" value={form.date.slice(0,16)} onChange={e=>setForm({...form, date: new Date(e.target.value).toISOString()})}/></div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                                <div><label className="text-xs font-bold text-slate-500">日期</label><input type="datetime-local" className="input-field" value={form.date.slice(0,16)} onChange={e=>setForm({...form, date: new Date(e.target.value).toISOString()})}/></div>
                                     <div><label className="text-xs font-bold text-slate-500">付款方式</label><select className="input-field" value={form.paymentMethod} onChange={e=>setForm({...form, paymentMethod: e.target.value})}>{['現金', '信用卡', '街口支付', 'LINE Pay'].map(m=><option key={m} value={m}>{m}</option>)}</select></div>
                                     <div><label className="text-xs font-bold text-slate-500">主設計師</label><select className="input-field" value={form.mainStylistId} onChange={e=>setForm({...form, mainStylistId: e.target.value})}>{safeStylists.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
                                     <div>
@@ -1501,51 +1501,71 @@ function HairSalonApp() {
                 );
             };
 
+           // --- 從這裡開始替換 (約 1529 行) ---
             return (
-                <div className="flex h-screen overflow-hidden bg-slate-100">
-                    <aside className="hidden lg:flex flex-col w-64 bg-white border-r border-slate-200 z-20 shadow-sm">
-                        <div className="p-6 flex items-center gap-3"><div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-200">S</div><div className="font-bold text-lg text-slate-800">專屬空間沙龍</div></div>
-                        <nav className="flex-1 p-4 space-y-2">
-                            {[ {id:'pos', icon:CreditCard, label:'收銀開單'}, {id:'orders', icon:ClipboardList, label:'查單管理'}, {id:'report', icon:Activity, label:'營運報表'}, {id:'customers', icon:User, label:'顧客資料'}, {id:'staff', icon:UserCog, label:'人員管理'}, {id:'inventory', icon:Box, label:'商品庫存'}, {id:'settings', icon:Settings, label:'系統設定'} ].map(item=>(<button key={item.id} onClick={()=>setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-bold ${activeTab===item.id?'bg-indigo-50 text-indigo-600':'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}><item.icon size={20}/>{item.label}</button>))}
-                        </nav>
-                        {/* 雲端同步按鈕區塊 */}
-        <div className="mx-4 mt-auto mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Database Sync</div>
-            <button 
-                onClick={syncFromCloud}
-                disabled={isSyncing}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-white text-emerald-600 rounded-xl font-bold hover:bg-emerald-50 transition-all text-xs border border-emerald-200 shadow-sm disabled:opacity-50"
-            >
-                <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
-                強制抓取雲端更新
-            </button>
-            <button 
-                onClick={syncToCloud}
-                disabled={isSyncing}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all text-xs shadow-md disabled:opacity-50"
-            >
-                <Upload size={14} />
-                手動備份至雲端
-            </button>
-        </div>
-                        <div className="p-4 border-t border-slate-100 text-xs text-center text-slate-400 font-medium">Salon POS v18.0 Ultimate</div>
+                <div className="flex h-screen overflow-hidden bg-slate-100 relative">
+                    {/* 1. 側邊欄 */}
+                    <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r shadow-2xl transition-transform duration-300 lg:relative lg:translate-x-0 lg:shadow-none ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                        <div className="flex flex-col h-full">
+                            <div className="p-6 flex items-center gap-3">
+                                <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-100">S</div>
+                                <div className="font-bold text-lg text-slate-800">專屬空間</div>
+                            </div>
+                            <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                                {[ 
+                                    {id:'pos', icon:CreditCard, label:'收銀開單'}, 
+                                    {id:'orders', icon:ClipboardList, label:'查單管理'}, 
+                                    {id:'report', icon:Activity, label:'營運報表'}, 
+                                    {id:'customers', icon:User, label:'顧客資料'}, 
+                                    {id:'staff', icon:UserCog, label:'人員管理'}, 
+                                    {id:'inventory', icon:Box, label:'商品庫存'}, 
+                                    {id:'settings', icon:Settings, label:'系統設定'} 
+                                ].map(item => (
+                                    <button key={item.id} onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold ${activeTab===item.id?'bg-indigo-50 text-indigo-600':'text-slate-500 hover:bg-slate-50'}`}>
+                                        <item.icon size={20}/>{item.label}
+                                    </button>
+                                ))}
+                            </nav>
+                            
+                            <div className="p-4 border-t border-slate-100 space-y-2">
+                                <button onClick={syncFromCloud} disabled={isSyncing} className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 rounded-lg font-bold text-xs border border-emerald-100">
+                                    <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} /> 強制抓取
+                                </button>
+                                <button onClick={syncToCloud} disabled={isSyncing} className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg font-bold text-xs">
+                                    <Upload size={14} /> 備份至雲端
+                                </button>
+                            </div>
+                        </div>
                     </aside>
-                    <div className="lg:hidden fixed top-0 w-full bg-white border-b p-4 flex justify-between items-center z-30 shadow-sm"><div className="font-bold flex items-center gap-2"><div className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center text-white">S</div> 專屬空間</div><button onClick={()=>setIsMobileMenuOpen(!isMobileMenuOpen)}><Menu/></button></div>
-                    {isMobileMenuOpen && <div className="lg:hidden fixed inset-0 bg-slate-900/95 z-40 pt-20 px-6 space-y-4 text-white animate-fade-in"><button onClick={()=>{setActiveTab('pos'); setIsMobileMenuOpen(false);}} className="block text-xl font-bold w-full text-left py-4 border-b border-white/10">開單</button><button onClick={()=>{setActiveTab('orders'); setIsMobileMenuOpen(false);}} className="block text-xl font-bold w-full text-left py-4 border-b border-white/10">查單</button><button onClick={()=>{setActiveTab('report'); setIsMobileMenuOpen(false);}} className="block text-xl font-bold w-full text-left py-4 border-b border-white/10">報表</button><button onClick={()=>{setActiveTab('customers'); setIsMobileMenuOpen(false);}} className="block text-xl font-bold w-full text-left py-4 border-b border-white/10">客資</button><button onClick={()=>{setActiveTab('staff'); setIsMobileMenuOpen(false);}} className="block text-xl font-bold w-full text-left py-4 border-b border-white/10">人員</button><button onClick={()=>{setActiveTab('inventory'); setIsMobileMenuOpen(false);}} className="block text-xl font-bold w-full text-left py-4 border-b border-white/10">庫存</button><button onClick={()=>{setActiveTab('settings'); setIsMobileMenuOpen(false);}} className="block text-xl font-bold w-full text-left py-4 border-b border-white/10">設定</button><button onClick={()=>setIsMobileMenuOpen(false)} className="absolute top-4 right-4 p-2"><X size={24}/></button></div>}
-                    <main className="flex-1 overflow-hidden relative pt-16 lg:pt-0">
-                        {activeTab==='pos' && <POSView/>}
-                        {activeTab==='orders' && <OrderView/>}
-                        {activeTab==='report' && <ReportView/>}
-                        {activeTab==='customers' && <CustomerView/>}
-                        {activeTab==='staff' && <StaffView/>}
-                        {activeTab==='inventory' && <InventoryView/>}
-                        {activeTab==='settings' && <SettingsView/>}
+
+                    {/* 2. 主內容區 */}
+                    <main className="flex-1 h-full overflow-hidden flex flex-col relative">
+                        <div className="lg:hidden bg-white border-b p-4 flex justify-between items-center z-30 shadow-sm">
+                            <div className="font-bold flex items-center gap-2 text-indigo-600">專屬空間 POS</div>
+                            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 bg-slate-100 rounded-lg text-slate-600"><Menu size={20}/></button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-hidden">
+                            {activeTab === 'pos' && <POSView />}
+                            {activeTab === 'orders' && <OrderView />}
+                            {activeTab === 'report' && <ReportView />}
+                            {activeTab === 'customers' && <CustomerView />}
+                            {activeTab === 'staff' && <StaffView />}
+                            {activeTab === 'inventory' && <InventoryView />}
+                            {activeTab === 'settings' && <SettingsView />}
+                        </div>
                     </main>
+
+                    {/* 3. 手機遮罩 */}
+                    {isMobileMenuOpen && (
+                        <div className="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-40" onClick={() => setIsMobileMenuOpen(false)}></div>
+                    )}
+
                     <ConfirmModal {...confirmDialog} />
                     {notification && <div className={`fixed bottom-6 right-6 px-6 py-3 rounded-2xl shadow-xl z-[70] animate-fade-in text-white font-bold flex items-center gap-2 ${notification.type==='error'?'bg-red-500':'bg-slate-800'}`}>{notification.type==='error'?<X size={20}/>:<CheckCircle size={20}/>} {notification.msg}</div>}
                 </div>
             );
-        }
+        } // 這裡是 HairSalonApp 的結尾
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<HairSalonApp />);
     </script>

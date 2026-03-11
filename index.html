@@ -301,15 +301,36 @@ function HairSalonApp() {
         } finally { setIsSyncing(false); }
     };
 
-    const syncToCloud = async () => {
+   const syncToCloud = async () => {
+        if (isSyncing) return;
         setIsSyncing(true);
-        const allData = { services, stylists, customers, transactions, settings, inventoryLogs, expenses };
         try {
-            await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(allData) });
-            showToast("☁️ 資料已同步備份至雲端");
+            // --- 核心修改：上傳前，先強制存進這台裝置的永久記憶體 ---
+            localStorage.setItem('salon_data_services', JSON.stringify(services));
+            localStorage.setItem('salon_data_stylists', JSON.stringify(stylists));
+            localStorage.setItem('salon_data_customers', JSON.stringify(customers));
+            localStorage.setItem('salon_data_transactions', JSON.stringify(transactions));
+            localStorage.setItem('salon_data_expenses', JSON.stringify(expenses));
+            localStorage.setItem('salon_data_settings', JSON.stringify(settings));
+
+            // 執行雲端上傳
+            const response = await fetch(GAS_URL, {
+                method: 'POST',
+                body: JSON.stringify({
+                    services, stylists, customers, transactions, 
+                    expenses, settings, inventoryLogs
+                })
+            });
+            
+            if (response.ok) {
+                showToast("☁️ 資料已同步並鎖定儲存");
+            }
         } catch (e) {
-            showToast("備份失敗", "error");
-        } finally { setIsSyncing(false); }
+            console.error("同步失敗:", e);
+            showToast("同步失敗，僅儲存在本地裝置", "error");
+        } finally {
+            setIsSyncing(false);
+        }
     };
 
             // Fallback for missing settings if loading from old data

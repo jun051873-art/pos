@@ -2,7 +2,8 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+   
     <title>專屬空間沙龍 - 專業旗艦版 POS (v18.5 Ultimate)</title>
     
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -263,6 +264,7 @@ function HairSalonApp() {
             const response = await fetch(GAS_URL);
             const cloudData = await response.json();
             if (cloudData && cloudData.services) {
+                // 1. 同步到畫面 (State)
                 setServices(cloudData.services);
                 setStylists(cloudData.stylists);
                 setCustomers(cloudData.customers);
@@ -270,13 +272,19 @@ function HairSalonApp() {
                 setSettings(cloudData.settings);
                 setInventoryLogs(cloudData.inventoryLogs);
                 setExpenses(cloudData.expenses);
-                showToast("✅ 雲端資料同步更新成功");
-            } else {
-                showToast("雲端尚無資料，請先執行備份", "error");
+
+                // 2. 同步到硬碟 (LocalStorage) - 這裡的名稱一定要對準你 240 行那邊的名稱
+                localStorage.setItem('salon_services', JSON.stringify(cloudData.services));
+                localStorage.setItem('salon_stylists', JSON.stringify(cloudData.stylists));
+                localStorage.setItem('salon_customers', JSON.stringify(cloudData.customers));
+                localStorage.setItem('salon_transactions', JSON.stringify(cloudData.transactions));
+                localStorage.setItem('salon_settings', JSON.stringify(cloudData.settings));
+                localStorage.setItem('salon_inventory_logs', JSON.stringify(cloudData.inventoryLogs));
+                localStorage.setItem('salon_expenses', JSON.stringify(cloudData.expenses));
+
+                showToast("✅ 雲端資料已成功鎖定至此裝置");
             }
-        } catch (e) {
-            showToast("同步失敗，請確認網路或權限", "error");
-        } finally { setIsSyncing(false); }
+        } catch (e) { showToast("連線失敗", "error"); } finally { setIsSyncing(false); }
     };
 
     const syncToCloud = async () => {

@@ -256,31 +256,28 @@ function HairSalonApp() {
         genderColors: DEFAULT_GENDER_COLORS
     });
 
-   // --- 找到這一段並刪除裡面的 setInterval 部分 ---
+   // 1. 開啟網頁時自動抓取一次 (第 260 行開始)
     React.useEffect(() => {
-        // 1. 保留：網頁打開時自動更新一次 (這能確保三台裝置剛開機時是一樣的)
         setTimeout(() => {
             if (typeof syncFromCloud === 'function') syncFromCloud();
         }, 1000); 
-
-        // 2. 刪除這一段：不要每 3 分鐘自動抓取了
-        // const autoRefreshInterval = setInterval(() => { ... }); 
-        // return () => clearInterval(autoRefreshInterval);
+        // 這裡我們已經刪除了 setInterval，不會再每 3 分鐘亂抓覆蓋你的還原檔
     }, []);
-    // 監控所有關鍵資料的變動
+
+    // 2. 全方位監控：只要有任何變動就自動同步上傳 (第 271 行開始)
     React.useEffect(() => {
         const timer = setTimeout(() => {
-            // 只要任何一項資料有變動，就自動同步到雲端
-            if (transactions.length > 0 || customers.length > 0) {
+            // 只要不是全空的，就自動同步到雲端
+            if (transactions.length > 0 || customers.length > 0 || expenses.length > 0) {
                 if (typeof syncToCloud === 'function') {
                     syncToCloud();
+                    console.log("偵測到資料變更，已自動同步至雲端");
                 }
             }
-        }, 2000); // 變動後 2 秒執行，避免連續打字時重複上傳
+        }, 2000); // 變動後 2 秒自動執行
         return () => clearTimeout(timer);
     }, [transactions, customers, expenses, services, stylists, settings]); 
-    // ↑ 注意：括號裡加入了 expenses, services, stylists, settings，確保全方位監控變動
-    
+    // ↑ 關鍵：這裡的括號內一定要包含這 6 項，少一個就不會自動傳
     // --- 新增：雲端同步核心功能 ---
     const syncFromCloud = async () => {
         setIsSyncing(true);

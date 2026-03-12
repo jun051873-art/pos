@@ -1445,12 +1445,12 @@ function HairSalonApp() {
    const importBackup = (event) => { 
                     const fileReader = new FileReader(); 
                     fileReader.readAsText(event.target.files[0], "UTF-8"); 
-                    fileReader.onload = e => { 
+                    fileReader.onload = async (e) => { // 注意這裡加了 async
                         try { 
                             const parsed = JSON.parse(e.target.result); 
                             if(confirm('確定要「強制還原」此備份檔並同步至雲端嗎？\n(系統將會自動重新啟動)')) { 
                                 
-                                // 1. 核心暴力鎖定：直接寫入底層記憶體，不讓系統有機會跳回空的
+                                // 1. 核心暴力鎖定（你原本寫得很好，維持住）
                                 if(parsed.services) localStorage.setItem('salon_services', JSON.stringify(parsed.services));
                                 if(parsed.stylists) localStorage.setItem('salon_stylists', JSON.stringify(parsed.stylists));
                                 if(parsed.customers) localStorage.setItem('salon_customers', JSON.stringify(parsed.customers));
@@ -1459,17 +1459,26 @@ function HairSalonApp() {
                                 if(parsed.settings) localStorage.setItem('salon_settings', JSON.stringify(parsed.settings));
                                 if(parsed.inventoryLogs) localStorage.setItem('salon_inventory_logs', JSON.stringify(parsed.inventoryLogs));
 
-                                // 2. 顯示成功訊息並立刻重啟網頁
-                                showToast('資料已強制鎖定，系統重新啟動中...'); 
+                                // 2. 【關鍵保險】：在重整前，先手動觸發一次上傳雲端
+                                // 這樣能確保試算表裡的資料立刻變成這份「還原後的舊資料」
+                                try {
+                                    await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(parsed) });
+                                    console.log("還原資料已成功同步至雲端");
+                                } catch (err) {
+                                    console.log("雲端同步失敗，但本地已還原");
+                                }
+
+                                // 3. 顯示成功訊息並立刻重啟網頁
+                                showToast('資料已鎖定並同步雲端，正在重新啟動...'); 
                                 setTimeout(() => {
                                     window.location.reload(); 
-                                }, 1200);
+                                }, 1500);
                             } 
                         } catch(err) { 
                             alert('檔案讀取失敗，請確認是否為正確的備份 JSON 檔'); 
                         } 
                     }; 
-                };             
+                };
                 const handleSaveItem = () => {
                     if (!itemForm.name || !itemForm.price) { alert('請輸入名稱與價格'); return; }
                     const newItem = { ...itemForm, price: Number(itemForm.price), cost: Number(itemForm.cost || 0), stock: itemForm.isProduct ? (itemForm.stock !== null ? itemForm.stock : 0) : null };

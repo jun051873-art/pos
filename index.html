@@ -256,58 +256,66 @@ function HairSalonApp() {
         genderColors: DEFAULT_GENDER_COLORS
     });
 
-    // --- 新增：雲端同步核心功能 ---
+    // 1. 雲端抓取功能：確保能把雲端的大庫房抓回來合併
     const syncFromCloud = async () => {
         setIsSyncing(true);
         try {
+            // 注意：這裡必須確保 GAS 的 doGet 有回傳正確格式
             const response = await fetch(GAS_URL);
             const cloudData = await response.json();
-            if (cloudData && cloudData.services) {
-                // 1. 同步到畫面 (State)
-                setServices(cloudData.services);
-                setStylists(cloudData.stylists);
-                setCustomers(cloudData.customers);
-                setTransactions(cloudData.transactions);
-                setSettings(cloudData.settings);
-                setInventoryLogs(cloudData.inventoryLogs);
-                setExpenses(cloudData.expenses);
+            
+            if (cloudData && (cloudData.transactions || cloudData.customers)) {
+                // 合併函數：避免重複，只增不減
+                const merge = (local, cloud) => {
+                    const map = {};
+                    (cloud || []).forEach(item => { if(item.id) map[item.id] = item; });
+                    (local || []).forEach(item => { if(item.id) map[item.id] = item; });
+                    return Object.values(map);
+                };
 
-                // 2. 同步到硬碟 (LocalStorage) - 這裡的名稱一定要對準你 240 行那邊的名稱
-                localStorage.setItem('salon_services', JSON.stringify(cloudData.services));
-                localStorage.setItem('salon_stylists', JSON.stringify(cloudData.stylists));
-                localStorage.setItem('salon_customers', JSON.stringify(cloudData.customers));
-                localStorage.setItem('salon_transactions', JSON.stringify(cloudData.transactions));
-                localStorage.setItem('salon_settings', JSON.stringify(cloudData.settings));
-                localStorage.setItem('salon_inventory_logs', JSON.stringify(cloudData.inventoryLogs));
-                localStorage.setItem('salon_expenses', JSON.stringify(cloudData.expenses));
+                // 更新本機資料
+                setTransactions(prev => merge(prev, cloudData.transactions));
+                setCustomers(prev => merge(prev, cloudData.customers));
+                setExpenses(prev => merge(prev, cloudData.expenses));
+                
+                // 設定與價目表以雲端最新版為主
+                if(cloudData.services) setServices(cloudData.services);
+                if(cloudData.settings) setSettings(cloudData.settings);
 
-                showToast("✅ 雲端資料已成功鎖定至此裝置");
+                showToast("✅ 雲端資料已成功同步併入");
+            } else {
+                showToast("雲端目前尚無資料", "info");
             }
-        } catch (e) { showToast("連線失敗", "error"); } finally { setIsSyncing(false); }
+        } catch (e) { 
+            console.error(e);
+            showToast("同步失敗，請檢查網路或網址", "error"); 
+        } finally { 
+            setIsSyncing(false); 
+        }
     };
-// --- 這裡是你原本的 syncFromCloud 結束的地方 ---
 
+    // 2. 雲端備份功能：把本機所有東西（含恢復的舊單）推上去
     const syncToCloud = async () => {
         if (isSyncing) return;
-        
-        // 【核心防禦】如果本機是空的，不准上傳，防止洗掉雲端資料
-        if (transactions.length === 0 && customers.length === 0) {
-            console.log("本機尚無營業資料，暫不啟動自動同步。");
-            return;
-        }
-
         setIsSyncing(true);
-        const allData = { services, stylists, customers, transactions, settings, inventoryLogs, expenses };
+        
+        const allData = { 
+            services, stylists, customers, transactions, 
+            settings, inventoryLogs, expenses 
+        };
+        
         try {
             const response = await fetch(GAS_URL, { 
                 method: 'POST', 
                 body: JSON.stringify(allData) 
             });
             if (response.ok) {
-                showToast("☁️ 資料已安全同步並合併至雲端");
+                showToast("☁️ 資料已安全同步至雲端");
+            } else {
+                throw new Error("GAS 回應錯誤");
             }
         } catch (e) {
-            showToast("同步失敗，請檢查網路", "error");
+            showToast("備份失敗", "error");
         } finally {
             setIsSyncing(false);
         }

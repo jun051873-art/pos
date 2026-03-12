@@ -286,18 +286,33 @@ function HairSalonApp() {
             }
         } catch (e) { showToast("連線失敗", "error"); } finally { setIsSyncing(false); }
     };
+// --- 這裡是你原本的 syncFromCloud 結束的地方 ---
 
     const syncToCloud = async () => {
+        if (isSyncing) return;
+        
+        // 【核心防禦】如果本機是空的，不准上傳，防止洗掉雲端資料
+        if (transactions.length === 0 && customers.length === 0) {
+            console.log("本機尚無營業資料，暫不啟動自動同步。");
+            return;
+        }
+
         setIsSyncing(true);
         const allData = { services, stylists, customers, transactions, settings, inventoryLogs, expenses };
         try {
-            await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(allData) });
-            showToast("☁️ 資料已同步備份至雲端");
+            const response = await fetch(GAS_URL, { 
+                method: 'POST', 
+                body: JSON.stringify(allData) 
+            });
+            if (response.ok) {
+                showToast("☁️ 資料已安全同步並合併至雲端");
+            }
         } catch (e) {
-            showToast("備份失敗", "error");
-        } finally { setIsSyncing(false); }
+            showToast("同步失敗，請檢查網路", "error");
+        } finally {
+            setIsSyncing(false);
+        }
     };
-
             // Fallback for missing settings if loading from old data
             const safeSettings = {
                 categories: settings.categories || DEFAULT_CATEGORIES,

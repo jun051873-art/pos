@@ -1540,23 +1540,67 @@ function HairSalonApp() {
                         <div className="p-4 border-t border-slate-100 text-xs text-center text-slate-400 font-medium">Salon POS v18.0 Ultimate</div>
                     </aside>
                     <div className="lg:hidden fixed top-0 w-full bg-white border-b p-4 flex justify-between items-center z-30 shadow-sm"><div className="font-bold flex items-center gap-2"><div className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center text-white">S</div> 專屬空間</div><button onClick={()=>setIsMobileMenuOpen(!isMobileMenuOpen)}><Menu/></button></div>
-                    {isMobileMenuOpen && <div className="lg:hidden fixed inset-0 bg-slate-900/95 z-40 pt-20 px-6 space-y-4 text-white animate-fade-in"><button onClick={()=>{setActiveTab('pos'); setIsMobileMenuOpen(false);}} className="block text-xl font-bold w-full text-left py-4 border-b border-white/10">開單</button><button onClick={()=>{setActiveTab('orders'); setIsMobileMenuOpen(false);}} className="block text-xl font-bold w-full text-left py-4 border-b border-white/10">查單</button><button onClick={()=>{setActiveTab('report'); setIsMobileMenuOpen(false);}} className="block text-xl font-bold w-full text-left py-4 border-b border-white/10">報表</button><button onClick={()=>{setActiveTab('customers'); setIsMobileMenuOpen(false);}} className="block text-xl font-bold w-full text-left py-4 border-b border-white/10">客資</button><button onClick={()=>{setActiveTab('staff'); setIsMobileMenuOpen(false);}} className="block text-xl font-bold w-full text-left py-4 border-b border-white/10">人員</button><button onClick={()=>{setActiveTab('inventory'); setIsMobileMenuOpen(false);}} className="block text-xl font-bold w-full text-left py-4 border-b border-white/10">庫存</button><button onClick={()=>{setActiveTab('settings'); setIsMobileMenuOpen(false);}} className="block text-xl font-bold w-full text-left py-4 border-b border-white/10">設定</button><button onClick={()=>setIsMobileMenuOpen(false)} className="absolute top-4 right-4 p-2"><X size={24}/></button></div>}
-                    <main className="flex-1 overflow-hidden relative pt-16 lg:pt-0">
-                        {activeTab==='pos' && <POSView/>}
-                        {activeTab==='orders' && <OrderView/>}
-                        {activeTab==='report' && <ReportView/>}
-                        {activeTab==='customers' && <CustomerView/>}
-                        {activeTab==='staff' && <StaffView/>}
-                        {activeTab==='inventory' && <InventoryView/>}
-                        {activeTab==='settings' && <SettingsView/>}
-                    </main>
-                    <ConfirmModal {...confirmDialog} />
-                    {notification && <div className={`fixed bottom-6 right-6 px-6 py-3 rounded-2xl shadow-xl z-[70] animate-fade-in text-white font-bold flex items-center gap-2 ${notification.type==='error'?'bg-red-500':'bg-slate-800'}`}>{notification.type==='error'?<X size={20}/>:<CheckCircle size={20}/>} {notification.msg}</div>}
+                    {/* 1. 手機版全螢幕選單 */}
+            {isMobileMenuOpen && (
+                <div className="lg:hidden fixed inset-0 bg-slate-900/95 z-[100] pt-[env(safe-area-inset-top)] px-6 text-white animate-fade-in flex flex-col">
+                    <div className="flex justify-between items-center py-6 border-b border-white/10">
+                        <div className="font-bold text-xl">系統選單</div>
+                        <button onClick={() => setIsMobileMenuOpen(false)} className="p-2"><X size={32}/></button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto pt-4 pb-10">
+                        {[ 
+                            {id:'pos', label:'開單'}, {id:'orders', label:'查單'}, {id:'report', label:'報表'}, 
+                            {id:'customers', label:'客資'}, {id:'staff', label:'人員'}, {id:'inventory', label:'庫存'}, {id:'settings', label:'設定'} 
+                        ].map(item => (
+                            <button key={item.id} onClick={()=>{setActiveTab(item.id); setIsMobileMenuOpen(false);}} className="block text-2xl font-bold w-full text-left py-5 border-b border-white/5 active:bg-white/10">{item.label}</button>
+                        ))}
+                        
+                        {/* 手機版雲端按鈕：放在選單最下面 */}
+                        <div className="grid grid-cols-2 gap-4 mt-8">
+                            <button onClick={() => { syncFromCloud(); setIsMobileMenuOpen(false); }} className="flex flex-col items-center justify-center gap-2 p-4 bg-emerald-600 rounded-2xl font-bold active:scale-95">
+                                <RefreshCw size={24}/> 抓取更新
+                            </button>
+                            <button onClick={() => { syncToCloud(); setIsMobileMenuOpen(false); }} className="flex flex-col items-center justify-center gap-2 p-4 bg-indigo-600 rounded-2xl font-bold active:scale-95">
+                                <Upload size={24}/> 備份雲端
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            );
-        }
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<HairSalonApp />);
+            )}
+
+            {/* 2. 主內容區：pt-[env(safe-area-inset-top)] 解決 iPhone 點不到頂部問題 */}
+            <main className="flex-1 w-full h-screen overflow-hidden flex flex-col relative pt-[env(safe-area-inset-top)]">
+                {/* 手機版頂欄 */}
+                <div className="lg:hidden bg-white border-b p-4 h-16 flex justify-between items-center z-30 shadow-sm">
+                    <div className="font-bold flex items-center gap-2 text-slate-800">
+                        <div className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center text-white">S</div> 專屬空間
+                    </div>
+                    <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 bg-slate-100 rounded-lg active:bg-slate-200"><Menu size={24}/></button>
+                </div>
+
+                <div className="flex-1 overflow-auto bg-slate-50">
+                    {activeTab === 'pos' && <POSView />}
+                    {activeTab === 'orders' && <OrderView />}
+                    {activeTab === 'report' && <ReportView />}
+                    {activeTab === 'customers' && <CustomerView />}
+                    {activeTab === 'staff' && <StaffView />}
+                    {activeTab === 'inventory' && <InventoryView />}
+                    {activeTab === 'settings' && <SettingsView />}
+                </div>
+            </main>
+
+            <ConfirmModal {...confirmDialog} />
+            {notification && (
+                <div className={`fixed bottom-10 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:translate-x-0 px-6 py-3 rounded-2xl shadow-2xl z-[110] animate-fade-in text-white font-bold flex items-center gap-2 whitespace-nowrap ${notification.type==='error'?'bg-red-500':'bg-slate-800'}`}>
+                    {notification.type==='error'?<X size={20}/>:<CheckCircle size={20}/>} {notification.msg}
+                </div>
+            )}
+        </div>
+    );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<HairSalonApp />);
     </script>
 </body>
 </html>

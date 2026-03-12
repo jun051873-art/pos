@@ -1099,24 +1099,53 @@ function HairSalonApp() {
                     setPendingOrders(safePendingOrders.filter(o => o.id !== order.id)); setShowPending(false); showToast('單據已取出');
                 };
 
-                const handleCheckout = (paymentMethod) => {
-                    if (cart.length === 0) return;
-                    const finalCustName = selectedCustomer ? selectedCustomer.name : (adHocCustomerName || '散客');
-                    const finalCustId = selectedCustomer ? selectedCustomer.id : null;
-                   const finalGender = selectedCustomer ? selectedCustomer.gender : adHocGender;
-// 注意看這裡：要在 newOrder 前面加上 const
-    const newOrder = { 
-        id: generateId(), 
-        date: new Date(checkoutDate).toISOString(), 
-        items: cart, 
-        total: cartTotal, 
-        paymentMethod, 
-        mainStylistId: selectedStylist, 
-        customerId: finalCustId, 
-        customerName: finalCustName,
-        customerGender: finalGender,
-        createdAt: new Date().toISOString() 
-    }; // 這是第一個關門 (結帳單內容結束)
+const handleCheckout = (paymentMethod) => {
+                if (cart.length === 0) return;
+                
+                const finalCustName = selectedCustomer ? selectedCustomer.name : (adHocCustomerName || '散客');
+                const finalCustId = selectedCustomer ? selectedCustomer.id : null;
+                const finalGender = selectedCustomer ? selectedCustomer.gender : adHocGender;
+
+                // 1. 產生新訂單
+                const newOrder = { 
+                    id: generateId(), 
+                    date: new Date(checkoutDate).toISOString(), 
+                    items: cart, 
+                    total: cartTotal, 
+                    paymentMethod, 
+                    mainStylistId: selectedStylist, 
+                    customerId: finalCustId, 
+                    customerName: finalCustName,
+                    customerGender: finalGender,
+                    createdAt: new Date().toISOString() 
+                };
+
+                // 2. 存入交易紀錄
+                setTransactions(prev => [newOrder, ...prev]);
+
+                // 3. 更新會員消費金額
+                if (selectedCustomer) {
+                    setCustomers(prev => prev.map(c => 
+                        c.id === selectedCustomer.id ? { ...c, totalSpent: (c.totalSpent || 0) + cartTotal } : c
+                    ));
+                }
+
+                // 4. 清空購物車與狀態
+                setCart([]);
+                setSelectedCustomer(null);
+                setAdHocCustomerName('');
+                setShowCheckout(false);
+
+                // 5. 顯示通知
+                showToast("✅ 結帳成功！");
+
+                // --- 🚀 關鍵：結帳完 1.5 秒後自動啟動雲端備份 ---
+                setTimeout(() => {
+                    if (typeof syncToCloud === 'function') {
+                        syncToCloud();
+                    }
+                }, 1500);
+            };
 
 // 1. 更新商品庫存
         const updatedServices = safeServices.map(s => {

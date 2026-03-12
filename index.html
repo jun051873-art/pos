@@ -295,27 +295,26 @@ function HairSalonApp() {
     };
 
     // 2. 雲端備份功能：把本機所有東西（含恢復的舊單）推上去
-    const syncToCloud = async () => {
+    const syncToCloud = async (newData = null) => {
         if (isSyncing) return;
         setIsSyncing(true);
-        
-        const allData = { 
+
+        // 如果有傳入 newData 就用它，沒有才去抓手機目前的舊狀態
+        const dataToUpload = newData || { 
             services, stylists, customers, transactions, 
             settings, inventoryLogs, expenses 
         };
-        
+
         try {
             const response = await fetch(GAS_URL, { 
                 method: 'POST', 
-                body: JSON.stringify(allData) 
+                body: JSON.stringify(dataToUpload) 
             });
             if (response.ok) {
-                showToast("☁️ 資料已安全同步至雲端");
-            } else {
-                throw new Error("GAS 回應錯誤");
+                showToast("☁️ 雲端已同步");
             }
         } catch (e) {
-            showToast("備份失敗", "error");
+            console.error("同步失敗:", e);
         } finally {
             setIsSyncing(false);
         }
@@ -1123,29 +1122,34 @@ const handleCheckout = (paymentMethod) => {
                 // 2. 存入交易紀錄
                 setTransactions(prev => [newOrder, ...prev]);
 
-                // 3. 更新會員消費金額
-                if (selectedCustomer) {
-                    setCustomers(prev => prev.map(c => 
+                // 2. 如果是會員，更新他的消費累計 (先算好最新資料)
+                    const updatedCustomers = selectedCustomer ? customers.map(c => 
                         c.id === selectedCustomer.id ? { ...c, totalSpent: (c.totalSpent || 0) + cartTotal } : c
-                    ));
-                }
+                    ) : customers;
+                    const updatedTransactions = [newOrder, ...transactions];
 
-                // 4. 清空購物車與狀態
-                setCart([]);
-                setSelectedCustomer(null);
-                setAdHocCustomerName('');
-                setShowCheckout(false);
+                    setCustomers(updatedCustomers);
+                    setTransactions(updatedTransactions);
 
-                // 5. 顯示通知
-                showToast("✅ 結帳成功！");
+                    // 4. 清空購物車與狀態
+                    setCart([]);
+                    setSelectedCustomer(null);
+                    setAdHocCustomerName('');
+                    setShowCheckout(false);
 
-                // --- 🚀 關鍵：結帳完 1.5 秒後自動啟動雲端備份 ---
-                setTimeout(() => {
-                    if (typeof syncToCloud === 'function') {
-                        syncToCloud();
-                    }
-                }, 1500);
-            };
+                    // 5. 顯示通知
+                    showToast("✅ 結帳成功！");
+
+                    // --- 🚀 修改這裡：把最新包裹直接遞給它 ---
+                    setTimeout(() => {
+                        if (typeof syncToCloud === 'function') {
+                            syncToCloud({
+                                services, stylists, settings, inventoryLogs, expenses,
+                                transactions: updatedTransactions, // 帶上最新的單
+                                customers: updatedCustomers       // 帶上最新的客資
+                            });
+                        }
+                    }, 1500);
 
 // 1. 更新商品庫存
         const updatedServices = safeServices.map(s => {

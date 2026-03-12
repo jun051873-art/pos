@@ -1456,49 +1456,68 @@ function HairSalonApp() {
                         const link = document.createElement('a'); link.href = url; link.download = `salon_backup_${getCurrentDateLocal()}.json`; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url); showToast('備份下載已啟動');
                     } catch (error) { console.error(error); alert('備份失敗'); }
                 };
-   const importBackup = (event) => {
+  const importBackup = (event) => {
         const fileReader = new FileReader();
         if (!event.target.files[0]) return;
         
         fileReader.readAsText(event.target.files[0], "UTF-8");
-        fileReader.onload = async (e) => { // 這裡加了 async
+        fileReader.onload = async (e) => {
             try {
                 const parsed = JSON.parse(e.target.result);
-                if (confirm('確定要「強制還原」此備份檔並同步至雲端嗎？')) {
+                if (confirm('確定要「恢復舊檔案」並同步至雲端嗎？\n(這會將舊資料與雲端現有資料合併)')) {
                     
-                    // 1. 先寫入本地硬碟，鎖定狀態
-                    localStorage.setItem('salon_services', JSON.stringify(parsed.services || []));
-                    localStorage.setItem('salon_stylists', JSON.stringify(parsed.stylists || []));
-                    localStorage.setItem('salon_customers', JSON.stringify(parsed.customers || []));
-                    localStorage.setItem('salon_transactions', JSON.stringify(parsed.transactions || []));
-                    localStorage.setItem('salon_expenses', JSON.stringify(parsed.expenses || []));
-                    localStorage.setItem('salon_settings', JSON.stringify(parsed.settings || {}));
-                    localStorage.setItem('salon_inventory_logs', JSON.stringify(parsed.inventoryLogs || []));
+                    // 1. 先寫入本機 LocalStorage (確保格式對齊)
+                    const dataMap = {
+                        'salon_services': parsed.services || [],
+                        'salon_stylists': parsed.stylists || [],
+                        'salon_customers': parsed.customers || [],
+                        'salon_transactions': parsed.transactions || [],
+                        'salon_expenses': parsed.expenses || [],
+                        'salon_settings': parsed.settings || {},
+                        'salon_inventory_logs': parsed.inventoryLogs || []
+                    };
 
-                    // 2. 【核心保險】立刻強迫執行上傳雲端，不准等自動同步
-                    showToast("正在同步舊資料至雲端...");
+                    Object.entries(dataMap).forEach(([key, val]) => {
+                        localStorage.setItem(key, JSON.stringify(val));
+                    });
+
+                    // 2. 【核心補強】手動建構一個符合後端期待的「大禮包」
+                    const syncPayload = {
+                        services: dataMap['salon_services'],
+                        stylists: dataMap['salon_stylists'],
+                        customers: dataMap['salon_customers'],
+                        transactions: dataMap['salon_transactions'],
+                        expenses: dataMap['salon_expenses'],
+                        settings: dataMap['salon_settings'],
+                        inventoryLogs: dataMap['salon_inventory_logs']
+                    };
+
+                    showToast("正在將舊檔案合併至雲端...");
+                    
+                    // 3. 暴力同步：直接呼叫 POST，不透過自動感應
                     try {
                         const response = await fetch(GAS_URL, {
                             method: 'POST',
-                            body: JSON.stringify(parsed)
+                            body: JSON.stringify(syncPayload)
                         });
+                        
                         if (response.ok) {
-                            showToast("✅ 雲端已同步！正在重啟系統...");
+                            showToast("✅ 舊檔案已成功合併進雲端！");
                         }
                     } catch (err) {
-                        console.error("雲端更新失敗:", err);
+                        console.error("同步失敗:", err);
                     }
 
-                    // 3. 延遲一下再重整，確保 Google 那邊寫入完成
+                    // 4. 等待 1.5 秒讓 Google 寫入完成後再刷新
                     setTimeout(() => {
                         window.location.reload();
-                    }, 2000);
+                    }, 1500);
                 }
             } catch (err) {
                 alert('檔案讀取失敗，請確認是否為正確的 JSON 備份檔');
             }
         };
-    };
+    }; 
                 const handleSaveItem = () => {
                     if (!itemForm.name || !itemForm.price) { alert('請輸入名稱與價格'); return; }
                     const newItem = { ...itemForm, price: Number(itemForm.price), cost: Number(itemForm.cost || 0), stock: itemForm.isProduct ? (itemForm.stock !== null ? itemForm.stock : 0) : null };

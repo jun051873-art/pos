@@ -245,9 +245,9 @@ function HairSalonApp() {
     const [inventoryLogs, setInventoryLogs] = useStickyState('salon_inventory_logs', []);
     const [expenses, setExpenses] = useStickyState('salon_expenses', []);
     const [pendingOrders, setPendingOrders] = useStickyState('salon_pending_orders', []);
-    const [settings, setSettings] = useStickyState('salon_settings', { 
-        categories: DEFAULT_CATEGORIES, 
-        expenseTypes: DEFAULT_EXPENSE_TYPES, 
+   const [settings, setSettings] = useStickyState('salon_settings', {
+        categories: DEFAULT_CATEGORIES,
+        expenseTypes: DEFAULT_EXPENSE_TYPES,
         commissionRates: DEFAULT_COMMISSION,
         deductCostBeforeCommission: true,
         autoBackup: false,
@@ -256,6 +256,17 @@ function HairSalonApp() {
         genderColors: DEFAULT_GENDER_COLORS
     });
 
+    // --- 自動監控：當單據、客資、人員變動時，延遲 3 秒自動備份 ---
+    React.useEffect(() => {
+        if (transactions.length === 0 && customers.length === 0) return;
+
+        const timer = setTimeout(() => {
+            console.log("偵測到變動，準備自動雲端備份...");
+            syncToCloud();
+        }, 3000); 
+
+        return () => clearTimeout(timer); 
+    }, [transactions, customers, stylists, expenses]);
     // 1. 雲端抓取功能：確保能把雲端的大庫房抓回來合併
     const syncFromCloud = async () => {
         setIsSyncing(true);

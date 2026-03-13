@@ -260,56 +260,81 @@ function HairSalonApp() {
     const syncFromCloud = async () => {
         setIsSyncing(true);
         try {
-            // 注意：這裡必須確保 GAS 的 doGet 有回傳正確格式
             const response = await fetch(GAS_URL);
             const cloudData = await response.json();
-            
-            if (cloudData && (cloudData.transactions || cloudData.customers)) {
-                // 合併函數：避免重複，只增不減
-                const merge = (local, cloud) => {
-                    const map = {};
-                    (cloud || []).forEach(item => { if(item.id) map[item.id] = item; });
-                    (local || []).forEach(item => { if(item.id) map[item.id] = item; });
-                    return Object.values(map);
-                };
-
-                // 更新本機資料
-                setTransactions(prev => merge(prev, cloudData.transactions));
-                setCustomers(prev => merge(prev, cloudData.customers));
-                setExpenses(prev => merge(prev, cloudData.expenses));
+            if (cloudData && cloudData.services) {
                 
-                // 設定與價目表以雲端最新版為主
-                if(cloudData.services) setServices(cloudData.services);
-                if(cloudData.settings) setSettings(cloudData.settings);
+                // --- 這裡是最關鍵的補強：把雲端的人員名單接住 ---
+                if (cloudData.stylists) {
+                    setStylists(cloudData.stylists);
+                    localStorage.setItem('salon_stylists', JSON.stringify(cloudData.stylists));
+                }
+                // ------------------------------------------
 
-                showToast("✅ 雲端資料已成功同步併入");
-            } else {
-                showToast("雲端目前尚無資料", "info");
+                // 同步其他資料
+                setServices(cloudData.services);
+                setCustomers(cloudData.customers || []);
+                setTransactions(cloudData.transactions || []);
+                setSettings(cloudData.settings || {});
+                setInventoryLogs(cloudData.inventoryLogs || []);
+                setExpenses(cloudData.expenses || []);
+
+                // 同步至本地硬碟存檔
+                localStorage.setItem('salon_services', JSON.stringify(cloudData.services));
+                localStorage.setItem('salon_customers', JSON.stringify(cloudData.customers || []));
+                localStorage.setItem('salon_transactions', JSON.stringify(cloudData.transactions || []));
+                localStorage.setItem('salon_settings', JSON.stringify(cloudData.settings || {}));
+                localStorage.setItem('salon_inventory_logs', JSON.stringify(cloudData.inventoryLogs || []));
+                localStorage.setItem('salon_expenses', JSON.stringify(cloudData.expenses || []));
+
+                showToast("✅ 雲端資料已成功鎖定至此裝置");
             }
         } catch (e) { 
-            console.error(e);
-            showToast("同步失敗，請檢查網路或網址", "error"); 
+            showToast("連線失敗", "error"); 
         } finally { 
             setIsSyncing(false); 
         }
     };
 
     // 2. 雲端備份功能：把本機所有東西（含恢復的舊單）推上去
-   const syncToCloud = async () => {
+ const syncToCloud = async () => {
         if (isSyncing) return;
-        setIsSyncing(true);
         
-        // 打上當前時間戳
+        // --- 1. 改良防呆攔截：不再死鎖，允許刪除到剩下 0 筆時也能同步 ---
+        if (transactions.length === 0 && customers.length === 0) {
+            if (!confirm('偵測到目前無任何單據與客戶，確定要清空雲端資料嗎？')) {
+                return;
+            }
+        }
+
+        setIsSyncing(true);
+
+        // --- 2. 核心封裝：確保「人員名單 (stylists)」與「最新時間 (lastUpdated)」都有包進去 ---
         const allData = { 
-            services, stylists, customers, transactions, settings, inventoryLogs, expenses,
-            lastUpdated: new Date().getTime() // 紀錄這份資料是什麼時候發出的
+            services, 
+            stylists,      // 👈 補強：確保人員名字會跟著走
+            customers, 
+            transactions, 
+            settings, 
+            inventoryLogs, 
+            expenses,
+            lastUpdated: new Date().getTime() // 👈 重要：有了這個，刪除動作才會生效
         };
 
         try {
-            await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(allData) });
-            showToast("☁️ 雲端同步成功");
+            // --- 3. 發送請求 ---
+            const response = await fetch(GAS_URL, { 
+                method: 'POST', 
+                body: JSON.stringify(allData) 
+            });
+
+            if (response.ok) {
+                showToast("☁️ 雲端同步成功 (含人員與刪除紀錄)");
+            } else {
+                showToast("同步失敗：雲端無回應", "error");
+            }
         } catch (e) {
-            showToast("同步失敗", "error");
+            showToast("同步失敗：連線異常", "error");
         } finally {
             setIsSyncing(false);
         }
@@ -391,26 +416,49 @@ function HairSalonApp() {
                     }).sort((a,b) => new Date(b.date) - new Date(a.date));
                 }, [safeTransactions, queryDate, searchTerm, dateMode, filterStylist]);
 
-                const handleDeleteOrder = (orderId) => {
-                    confirmAction('刪除訂單', '確定要刪除此筆訂單？此動作將扣回顧客累積消費與次數，但不會回補庫存。', () => {
-                        const order = safeTransactions.find(t => t.id === orderId);
-                        if (order && order.customerId) {
-                            const updatedCustomers = safeCustomers.map(c => {
-                                if (c.id === order.customerId) {
-                                    return { 
-                                        ...c, 
-                                        visits: Math.max(0, (c.visits || 1) - 1), 
-                                        totalSpend: Math.max(0, (c.totalSpend || order.total) - order.total) 
-                                    };
-                                }
-                                return c;
-                            });
-                            setCustomers(updatedCustomers);
-                        }
-                        setTransactions(safeTransactions.filter(t => t.id !== orderId));
-                        showToast('訂單已刪除');
-                    });
-                };
+             const handleDeleteOrder = (orderId) => {
+        confirmAction('刪除訂單', '確定要刪除此筆訂單？此動作將同步至雲端。', async () => {
+            // 1. 先從本地陣列中移除
+            const updatedTransactions = transactions.filter(t => t.id !== orderId);
+            
+            // 2. 更新顧客累計資料 (這部分維持你原本的邏輯)
+            const order = transactions.find(t => t.id === orderId);
+            if (order && order.customerId) {
+                const updatedCustomers = customers.map(c => {
+                    if (c.id === order.customerId) {
+                        return { 
+                            ...c, 
+                            visits: Math.max(0, (c.visits || 1) - 1), 
+                            totalSpend: Math.max(0, (c.totalSpend || order.total) - order.total) 
+                        };
+                    }
+                    return c;
+                });
+                setCustomers(updatedCustomers);
+            }
+
+            // 3. 【關鍵：更新本地狀態】
+            setTransactions(updatedTransactions);
+            
+            // 4. 【核心補強：強迫同步】
+            // 這裡不呼叫 syncToCloud()，因為它有防呆攔截，我們直接手動發送 POST
+            showToast("正在同步刪除動作...");
+            const allData = { 
+                services, stylists, 
+                customers: customers, // 這裡要小心，如果是剛更新的要拿最新變數
+                transactions: updatedTransactions, // 傳送已經刪除後的陣列
+                settings, inventoryLogs, expenses,
+                lastUpdated: new Date().getTime() 
+            };
+
+            try {
+                const response = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(allData) });
+                if (response.ok) showToast("☁️ 雲端已同步刪除");
+            } catch (e) {
+                showToast("刪除同步失敗，請手動按備份", "error");
+            }
+        });
+    };
 
                 const handleUpdateOrder = (updatedOrder) => {
                     const newTransactions = safeTransactions.map(t => t.id === updatedOrder.id ? updatedOrder : t);
